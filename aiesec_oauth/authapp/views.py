@@ -1,15 +1,19 @@
+import os
+from dotenv import load_dotenv
 from django.shortcuts import render, redirect
 import requests
 from django.contrib.auth import login, logout
 from django.contrib.auth.models import User
 
+load_dotenv()
+
 AIESEC_AUTH_URL = "https://auth.aiesec.org/oauth/authorize"
 AIESEC_TOKEN_URL = "https://auth.aiesec.org/oauth/token"
 AIESEC_USER_URL = "https://gis-api.aiesec.org/v2/me.json"
 
-CLIENT_ID = "t5faSjuv2EJ1EgT5DQlFxGvADXCg-UIdln0yvN9dRA4"
-CLIENT_SECRET = "je1SgDV1dEBVO3DCfoHth9qb_7rSq9w9m7wCCWvMaiI"
-REDIRECT_URI = "http://127.0.0.1:8000/auth/oauth/callback/"
+CLIENT_ID = os.getenv("AIESEC_CLIENT_ID")
+CLIENT_SECRET = os.getenv("AIESEC_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("AIESEC_REDIRECT_URI")
 
 def login_page(request):
     """Renders the login page"""
