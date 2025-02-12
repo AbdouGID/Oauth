@@ -9,7 +9,7 @@ AIESEC_USER_URL = "https://gis-api.aiesec.org/v2/me.json"
 
 CLIENT_ID = "t5faSjuv2EJ1EgT5DQlFxGvADXCg-UIdln0yvN9dRA4"
 CLIENT_SECRET = "je1SgDV1dEBVO3DCfoHth9qb_7rSq9w9m7wCCWvMaiI"
-REDIRECT_URI = "https://expa.aiesec.org/auth"
+REDIRECT_URI = "http://127.0.0.1:8000/auth/oauth/callback/"
 
 def login_page(request):
     """Renders the login page"""
