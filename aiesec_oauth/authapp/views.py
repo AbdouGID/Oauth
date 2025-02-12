@@ -1,7 +1,7 @@
-from django.shortcuts import render
+from django.shortcuts import render, redirect
 import requests
-from django.shortcuts import redirect
-from django.conf import settings
+from django.contrib.auth import login, logout
+from django.contrib.auth.models import User
 
 AIESEC_AUTH_URL = "https://auth.aiesec.org/oauth/authorize"
 AIESEC_TOKEN_URL = "https://auth.aiesec.org/oauth/token"
@@ -9,22 +9,29 @@ AIESEC_USER_URL = "https://gis-api.aiesec.org/v2/me.json"
 
 CLIENT_ID = "t5faSjuv2EJ1EgT5DQlFxGvADXCg-UIdln0yvN9dRA4"
 CLIENT_SECRET = "je1SgDV1dEBVO3DCfoHth9qb_7rSq9w9m7wCCWvMaiI"
-REDIRECT_URI = "https://expa.aiesec.org"
+REDIRECT_URI = "https://expa.aiesec.org/auth"
+
+def login_page(request):
+    """Renders the login page"""
+    return render(request, "login_page.html")
 
 def aiesec_login(request):
+    """Redirects user to AIESEC OAuth login"""
     auth_url = f"{AIESEC_AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code"
     return redirect(auth_url)
 
 def aiesec_callback(request):
+    """Handles OAuth callback and logs the user in"""
     code = request.GET.get("code")
     if not code:
-        return redirect("/")  # Redirect to home if authentication fails
+        return redirect("/")  # Redirect to login page if no code
 
+    # Exchange authorization code for access token
     data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "redirect_uri": REDIRECT_URI,
-        #"grant_type": "authorization_code",
+        # "grant_type": "authorization_code",
         "code": code,
     }
 
@@ -35,10 +42,43 @@ def aiesec_callback(request):
     if not access_token:
         return redirect("/")  # Redirect if authentication fails
 
+    # Fetch user data from AIESEC
     headers = {"Authorization": f"Bearer {access_token}"}
     user_response = requests.get(AIESEC_USER_URL, headers=headers)
     user_data = user_response.json()
 
-    print(user_data)
+    # Extract user details
+    email = user_data.get("email")
+    first_name = user_data.get("first_name")
+    last_name = user_data.get("last_name")
 
+    if not email:
+        return redirect("/")  # Redirect if no email found
+
+    # Create or update user in Django's auth system
+    user, created = User.objects.get_or_create(username=email, defaults={
+        "first_name": first_name,
+        "last_name": last_name,
+        "email": email
+    })
+
+    # Log in the user
+    login(request, user)
+
+    # Store access token in session
+    request.session["access_token"] = access_token
+
+    return redirect("/home/")  # Redirect to home page
+
+def home(request):
+    """Simple home page after login"""
+    user = request.user
+    if user.is_authenticated:
+        return render(request, "home.html", {"user": user})
+    return redirect("/")
+
+def logout_view(request):
+    """Logs the user out"""
+    logout(request)
+    request.session.flush()
     return redirect("/")
