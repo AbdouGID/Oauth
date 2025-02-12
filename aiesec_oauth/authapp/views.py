@@ -42,3 +42,11 @@ def aiesec_callback(request):
     print(user_data)
 
     return redirect("/")
+
+from django.contrib.auth import logout
+
+def logout_view(request):
+    """Logs the user out and clears the session."""
+    logout(request)
+    request.session.flush()
+    return redirect("/")
