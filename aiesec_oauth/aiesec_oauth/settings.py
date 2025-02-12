@@ -11,6 +11,15 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+AIESEC_CLIENT_ID = os.getenv("AIESEC_CLIENT_ID")
+AIESEC_CLIENT_SECRET = os.getenv("AIESEC_CLIENT_SECRET")
+AIESEC_REDIRECT_URI = os.getenv("AIESEC_REDIRECT_URI")
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -42,8 +51,8 @@ INSTALLED_APPS = [
     "allauth",
     "allauth.account",
     "allauth.socialaccount",
-    "allauth.socialaccount.providers.google",  # Example for Google OAuth
-    "authapp",  # Custom authentication app
+    "allauth.socialaccount.providers.google",
+    "authapp",
 ]
 
 MIDDLEWARE = [
@@ -52,7 +61,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    "allauth.account.middleware.AccountMiddleware",  # Add this line
+    "allauth.account.middleware.AccountMiddleware",
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
