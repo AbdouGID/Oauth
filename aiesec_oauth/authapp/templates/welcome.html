@@ -37,9 +37,9 @@
 </head>
 <body>
     <div class="container">
-        <h2>Login with AIESEC</h2>
-        <p>Click the button below to authenticate via AIESEC OAuth.</p>
-        <a class="login-btn" href="/auth/oauth/aiesec/">Login with AIESEC</a>
+        <h1>Welcome, {{ user.full_name }} with {{ user.email }}!</h1>
+        <p>You have successfully logged in using AIESEC OAuth.</p>
+        <a class="logout-btn" href="/auth/logout/">Logout</a>
     </div>
 </body>
 </html>

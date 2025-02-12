@@ -36,6 +36,12 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# Ensure session management is enabled
+SESSION_ENGINE = "django.contrib.sessions.backends.db"
+SESSION_COOKIE_NAME = "sessionid"
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = False  # Set to True in production
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 
 # Application definition
 

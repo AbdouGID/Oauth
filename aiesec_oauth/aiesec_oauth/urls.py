@@ -16,16 +16,17 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from authapp.views import aiesec_login, aiesec_callback
 
 def home(request):
-    return HttpResponse("Welcome to AIESEC OAuth!")
+    return render(request, "home.html")
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path("accounts/", include("allauth.urls")),
-    path('', home, name='home'),  # Add this line to handle the root URL
+    path('', home, name='home'),
     path("auth/", include("authapp.urls")),  # Custom OAuth
 ]
 
