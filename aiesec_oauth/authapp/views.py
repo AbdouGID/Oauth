@@ -135,7 +135,7 @@ def aiesec_callback(request):
     login(request, user)
     print(f"User {user.username} logged in successfully")
 
-    return render(request, "dashboard.html", {"user": request.user})  # ✅ Serve a real dashboard page
+    return render(request, "dashboard.html", {"user": request.user})
 
 def logout_and_redirect(request):
     """Logs out user and redirects to login page"""
@@ -146,8 +146,8 @@ def logout_and_redirect(request):
 def home(request):
     """Redirect authenticated users to a dashboard page instead of looping to /auth/"""
     if request.user.is_authenticated:
-        return render(request, "dashboard.html", {"user": request.user})  # ✅ Serve a real dashboard page
-    return render(request, "home.html", {"user": None})  # ✅ Show a home page for unauthenticated users
+        return render(request, "dashboard.html", {"user": request.user})
+    return render(request, "home.html", {"user": None})
 
 
 def logout_view(request):
