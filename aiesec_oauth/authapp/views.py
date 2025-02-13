@@ -2,7 +2,7 @@ import os
 from dotenv import load_dotenv
 from django.shortcuts import render, redirect
 import requests
-from django.contrib.auth import login, logout
+from django.contrib.auth import login, logout, get_user_model, authenticate
 from django.contrib.auth.models import User
 
 load_dotenv()
@@ -46,9 +46,8 @@ def fetch_user_data(request, force_refresh=False):
     }
 
     headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Authorization": access_token,
+        "Content-Type": "application/json"
     }
 
     user_response = requests.post(AIESEC_USER_URL, json=graphql_query, headers=headers)
@@ -72,7 +71,6 @@ def fetch_user_data(request, force_refresh=False):
 
     return user_data
 
-
 def aiesec_callback(request):
     """Handles OAuth callback and logs the user in"""
     code = request.GET.get("code")
@@ -84,7 +82,7 @@ def aiesec_callback(request):
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "redirect_uri": REDIRECT_URI,
-        "grant_type": "authorization_code", #issue here?
+        "grant_type": "authorization_code",
         "code": code,
     }
 
@@ -124,16 +122,20 @@ def aiesec_callback(request):
         print("Error: No email found in user data")
         return logout_and_redirect(request)
 
+    User = get_user_model()  # Ensure the correct user model is used
     user, created = User.objects.get_or_create(username=email, defaults={
         "first_name": first_name,
         "last_name": last_name,
         "email": email
     })
 
+    # Explicitly set authentication backend to avoid AttributeError
+    user.backend = 'django.contrib.auth.backends.ModelBackend'
+    
     login(request, user)
     print(f"User {user.username} logged in successfully")
 
-    return redirect("/auth/")
+    return render(request, "dashboard.html", {"user": request.user})  # ✅ Serve a real dashboard page
 
 def logout_and_redirect(request):
     """Logs out user and redirects to login page"""
@@ -142,10 +144,11 @@ def logout_and_redirect(request):
     return redirect("/auth/oauth/aiesec/")
 
 def home(request):
-    """Redirects authenticated users to /auth/"""
+    """Redirect authenticated users to a dashboard page instead of looping to /auth/"""
     if request.user.is_authenticated:
-        return redirect("/auth/")
-    return render(request, "home.html", {"user": request.user})
+        return render(request, "dashboard.html", {"user": request.user})  # ✅ Serve a real dashboard page
+    return render(request, "home.html", {"user": None})  # ✅ Show a home page for unauthenticated users
+
 
 def logout_view(request):
     """Logs the user out"""
