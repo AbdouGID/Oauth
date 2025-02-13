@@ -15,16 +15,19 @@ CLIENT_ID = os.getenv("AIESEC_CLIENT_ID")
 CLIENT_SECRET = os.getenv("AIESEC_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("AIESEC_REDIRECT_URI")
 
+
 def login_page(request):
     """Redirect authenticated users to /auth/, otherwise show login page."""
     if request.user.is_authenticated:
         return redirect("/auth/")
     return render(request, "welcome.html")
 
+
 def aiesec_login(request):
-    """Redirects user to AIESEC OAuth login"""
-    auth_url = f"{AIESEC_AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code"
+    """Redirect user to AIESEC OAuth login"""
+    auth_url = f"{AIESEC_AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code" # issue in code? 
     return redirect(auth_url)
+
 
 def refresh_access_token(request):
     """Refresh expired access token and update session"""
@@ -37,11 +40,11 @@ def refresh_access_token(request):
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "refresh_token": refresh_token,
-        "grant_type": "refresh_token",
+        "grant_type": "refresh_token", # issue here?
     }
 
     response = requests.post(AIESEC_TOKEN_URL, data=refresh_data, headers={"Accept": "application/json"})
-    
+
     try:
         token_data = response.json()
     except requests.exceptions.JSONDecodeError:
@@ -55,12 +58,11 @@ def refresh_access_token(request):
         print("Refresh failed: No new access token received. Full response:", token_data)
         return None, None
 
-    print("🔄 Token refreshed successfully")
+    print("Token refreshed successfully")
 
-    # **🔹 Force update session tokens**
     request.session["access_token"] = new_access_token
     request.session["refresh_token"] = new_refresh_token
-    request.session.modified = True  # 🔹 Ensure session changes are saved
+    request.session.modified = True  
 
     return new_access_token, new_refresh_token
 
@@ -92,7 +94,8 @@ def fetch_user_data(request, force_refresh=False):
 
     headers = {
         "Authorization": f"Bearer {access_token}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "Accept": "application/json"
     }
 
     user_response = requests.post(AIESEC_USER_URL, json=graphql_query, headers=headers)
@@ -116,10 +119,17 @@ def fetch_user_data(request, force_refresh=False):
         return logout_and_redirect(request)
 
     try:
-        return user_response.json().get("data", {}).get("currentPerson", {})
+        user_data = user_response.json().get("data", {}).get("currentPerson", {})
     except requests.exceptions.JSONDecodeError:
         print("JSONDecodeError: Invalid JSON response from AIESEC user API")
         return None
+
+    if not user_data or "email" not in user_data:
+        print("No email found in user data. Logging out.")
+        return logout_and_redirect(request)
+
+    return user_data
+
 
 def aiesec_callback(request):
     """Handles OAuth callback and logs the user in"""
@@ -128,12 +138,11 @@ def aiesec_callback(request):
         print("Error: No authorization code received")
         return redirect("/")
 
-    # Exchange authorization code for access token
     token_data = {
         "client_id": CLIENT_ID,
         "client_secret": CLIENT_SECRET,
         "redirect_uri": REDIRECT_URI,
-        "grant_type": "authorization_code",
+        "grant_type": "authorization_code", #issue here?
         "code": code,
     }
 
@@ -153,12 +162,10 @@ def aiesec_callback(request):
         print("Error: No access token received. Full response:", token_data)
         return redirect("/")
 
-    # **🔹 Store tokens in session and force update**
     request.session["access_token"] = access_token
     request.session["refresh_token"] = refresh_token
     request.session.modified = True  
 
-    # Fetch user data
     user_data = fetch_user_data(request)
 
     if user_data is None:
@@ -175,19 +182,16 @@ def aiesec_callback(request):
         print("Error: No email found in user data")
         return logout_and_redirect(request)
 
-    # Create or update user
     user, created = User.objects.get_or_create(username=email, defaults={
         "first_name": first_name,
         "last_name": last_name,
         "email": email
     })
 
-    # Log in the user directly
     login(request, user)
-
     print(f"User {user.username} logged in successfully")
 
-    return redirect("/auth/")  # Redirect authenticated user to /auth/
+    return redirect("/auth/")
 
 def logout_and_redirect(request):
     """Logs out user and redirects to login page"""
