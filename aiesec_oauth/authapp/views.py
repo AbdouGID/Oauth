@@ -28,56 +28,9 @@ def aiesec_login(request):
     auth_url = f"{AIESEC_AUTH_URL}?client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}&response_type=code" # issue in code? 
     return redirect(auth_url)
 
-
-def refresh_access_token(request):
-    """Refresh expired access token and update session"""
-    refresh_token = request.session.get("refresh_token")
-    if not refresh_token:
-        print("No refresh token found. Logging out.")
-        return None, None
-
-    refresh_data = {
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "refresh_token": refresh_token,
-        "grant_type": "refresh_token", # issue here?
-    }
-
-    response = requests.post(AIESEC_TOKEN_URL, data=refresh_data, headers={"Accept": "application/json"})
-
-    try:
-        token_data = response.json()
-    except requests.exceptions.JSONDecodeError:
-        print("JSONDecodeError: Invalid JSON response while refreshing token")
-        return None, None
-
-    new_access_token = token_data.get("access_token")
-    new_refresh_token = token_data.get("refresh_token")
-
-    if not new_access_token:
-        print("Refresh failed: No new access token received. Full response:", token_data)
-        return None, None
-
-    print("Token refreshed successfully")
-
-    request.session["access_token"] = new_access_token
-    request.session["refresh_token"] = new_refresh_token
-    request.session.modified = True  
-
-    return new_access_token, new_refresh_token
-
 def fetch_user_data(request, force_refresh=False):
     """Fetch user data from AIESEC GraphQL API"""
     access_token = request.session.get("access_token")
-
-    if not access_token:
-        print("No access token in session. Trying refresh...")
-        if force_refresh:
-            return None
-        new_access_token, _ = refresh_access_token(request)
-        if not new_access_token:
-            return None
-        access_token = new_access_token
 
     print(f"Using Access Token: {access_token}")
 
@@ -102,17 +55,6 @@ def fetch_user_data(request, force_refresh=False):
 
     print("User API Response Status Code:", user_response.status_code)
     print("Raw User Response:", user_response.text)
-
-    if user_response.status_code == 401:  # Token expired
-        print("Token expired. Refreshing token...")
-        new_access_token, _ = refresh_access_token(request)
-
-        if not new_access_token:
-            print("Token refresh failed. Logging out.")
-            return logout_and_redirect(request)
-
-        headers["Authorization"] = f"Bearer {new_access_token}"
-        user_response = requests.post(AIESEC_USER_URL, json=graphql_query, headers=headers)
 
     if user_response.status_code == 401:  # Still invalid after refresh
         print("Still getting invalid token after refresh. Logging out.")
