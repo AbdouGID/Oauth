@@ -141,7 +141,7 @@ def logout_and_redirect(request):
     """Logs out user and redirects to login page"""
     logout(request)
     request.session.flush()
-    return redirect("/auth/oauth/aiesec/")
+    return redirect("/")
 
 def home(request):
     """Redirect authenticated users to a dashboard page instead of looping to /auth/"""
