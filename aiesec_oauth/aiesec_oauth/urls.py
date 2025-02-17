@@ -18,7 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
-from authapp.views import aiesec_login, aiesec_callback
+from authapp.views import aiesec_login, aiesec_callback, filter_view, fetch_filtered_results
 
 def home(request):
     return render(request, "home.html")
@@ -28,5 +28,7 @@ urlpatterns = [
     path("accounts/", include("allauth.urls")),
     path('', home, name='home'),
     path("auth/", include("authapp.urls")),  # Custom OAuth
+    path("filters/", filter_view, name="filters"),
+    path("fetch-results/", fetch_filtered_results, name="fetch_filtered_results"),
 ]
 
