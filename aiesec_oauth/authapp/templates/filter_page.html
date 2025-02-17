@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Filter Opportunities</title>
+    
+    <!-- jQuery & Select2 CSS/JS -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 600px; margin: auto; }
+        .form-group { margin-bottom: 15px; }
+        .form-control { width: 100%; padding: 8px; }
+        .btn-submit { padding: 10px; background: blue; color: white; border: none; cursor: pointer; width: 100%; }
+        .results { margin-top: 20px; }
+        .select2-container { width: 100% !important; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Filter Opportunities</h2>
+        
+        <form id="filter-form" method="POST">
+            {% csrf_token %}
+            
+            <div class="form-group">
+                <label>Choose Host Region:</label>
+                <select name="host_region[]" multiple class="form-control select2">
+                    {% for region in filters.regions %}
+                        <option value="{{ region }}">{{ region }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Choose Background:</label>
+                <select name="background[]" multiple class="form-control select2">
+                    {% for background in filters.backgrounds %}
+                        <option value="{{ background }}">{{ background }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Choose Skills:</label>
+                <select name="skills[]" multiple class="form-control select2">
+                    {% for skill in filters.skills %}
+                        <option value="{{ skill }}">{{ skill }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Choose Product Type:</label>
+                <select name="product_type[]" multiple class="form-control select2">
+                    {% for product in filters.product_types %}
+                        <option value="{{ product }}">{{ product }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <button type="submit" class="btn-submit">Apply Filters</button>
+        </form>
+
+        <div class="results">
+            <h3>Filtered Results:</h3>
+            <ul id="results-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            // Initialize Select2 for multi-select dropdowns
+            $(".select2").select2({
+                placeholder: "Select options",
+                allowClear: true
+            });
+    
+            $("#filter-form").submit(function(event){
+                event.preventDefault();  // Prevent normal form submission
+    
+                let formData = {};  // Create object for structured form data
+    
+                // Serialize form inputs properly for multi-select fields
+                $(this).serializeArray().forEach(function(item) {
+                    if (formData[item.name]) {
+                        formData[item.name].push(item.value);
+                    } else {
+                        formData[item.name] = [item.value];
+                    }
+                });
+    
+                // ✅ Send AJAX POST request with JSON body
+                $.ajax({
+                    url: "{% url 'fetch_filtered_results' %}",  // Ensure this matches Django's URL name
+                    type: "POST",
+                    contentType: "application/json",
+                    data: JSON.stringify(formData),  // Convert to JSON
+                    headers: {
+                        "X-CSRFToken": $("input[name=csrfmiddlewaretoken]").val()  // ✅ Include CSRF token in header
+                    },
+                    success: function(response) {
+                        let resultsList = $("#results-list");
+                        resultsList.empty();
+    
+                        if (response.results.length > 0) {
+                            response.results.forEach(function(item) {
+                                resultsList.append(`<li><strong>${item.title}</strong> - ${item.host_lc} - ${item.backgrounds.join(", ")} - ${item.skills.join(", ")} - ${item.product_type}</li>`);
+                            });
+                        } else {
+                            resultsList.append("<li>No results found.</li>");
+                        }
+                    },
+                    error: function(xhr) {
+                        console.error("❌ Error fetching results:", xhr.responseText);
+                        $("#results-list").html("<li style='color: red;'>Error fetching results.</li>");
+                    }
+                });
+            });
+        });
+    </script>    
+</body>
+</html>
