@@ -101,12 +101,25 @@
                     let resultsList = $("#results-list");
                     resultsList.empty();
 
-                    if (response.filters && response.filters.length > 0) {
-                        response.filters.forEach(function(filter) {
-                            resultsList.append(`<li>${filter}</li>`);
+                    if (response.opportunities && response.opportunities.length > 0) {
+                        response.opportunities.forEach(function(opp) {
+                            let host = opp.host_lc ? opp.host_lc.name : "Unknown";
+                            let programme = opp.programme ? opp.programme.short_name : "Unknown";
+                            let backgrounds = opp.backgrounds.map(bg => bg.constant_name).join(", ") || "None";
+                            let skills = opp.skills.map(sk => sk.constant_name).join(", ") || "None";
+
+                            resultsList.append(`
+                                <li>
+                                    <strong>Host LC:</strong> ${host} <br>
+                                    <strong>Programme:</strong> ${programme} <br>
+                                    <strong>Backgrounds:</strong> ${backgrounds} <br>
+                                    <strong>Skills:</strong> ${skills}
+                                </li>
+                                <hr>
+                            `);
                         });
                     } else {
-                        resultsList.append("<li>No filters selected.</li>");
+                        resultsList.append("<li>No matching opportunities found.</li>");
                     }
                 })
                 .fail(function(xhr) {
