@@ -154,98 +154,140 @@ def logout_view(request):
     """Logs the user out"""
     return logout_and_redirect(request)
 
-def filter_view(request):
-    """Render the filter page only for authenticated users."""
-    if not request.user.is_authenticated:
-        return redirect("/")
+def refresh_access_token(request):
+    """Refresh AIESEC OAuth token"""
+    refresh_token = request.session.get("refresh_token")
 
-    # Dummy data
-    filters = {
-        "regions": ["Europe", "Asia", "MENA", "Americas"],
-        "backgrounds": ["IT", "Business", "Marketing", "Engineering"],
-        "skills": ["Python", "SEO", "Sales", "Data Analysis"],
-        "product_types": ["OGV", "OGTe", "OGTa"]
+    if not refresh_token:
+        print("❌ No refresh token found. Logging out.")
+        return None  # Return None if no refresh token
+
+    token_data = {
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "grant_type": "refresh_token",
+        "refresh_token": refresh_token,
     }
 
-    return render(request, "filter_page.html", {"filters": filters})
+    response = requests.post(AIESEC_TOKEN_URL, data=token_data, headers={"Accept": "application/json"})
+    print("🔄 Refresh Token Response:", response.text)
 
+    if response.status_code == 200:
+        try:
+            new_token_data = response.json()
+            new_access_token = new_token_data.get("access_token")
+            new_refresh_token = new_token_data.get("refresh_token")
 
-def fetch_filtered_results(request):
-    """Fetch results based on selected filters via AJAX."""
-    if request.method == "POST":
-        selected_filters = request.POST.dict()
-        print("Received Filters:", selected_filters)
+            if new_access_token:
+                request.session["access_token"] = new_access_token
+                request.session["refresh_token"] = new_refresh_token
+                request.session.modified = True
+                print("✅ Token refreshed successfully.")
+                return new_access_token
+        except Exception as e:
+            print(f"⚠️ Error parsing refresh response: {e}")
 
-        # Validate and sanitize the input filters
-        validated_filters = validate_filters(selected_filters)
+    print("❌ Token refresh failed.")
+    return None  # Return None if refresh fails
 
-        filtered_results = make_api_calls(request, validated_filters)
-
-        return JsonResponse({"results": filtered_results})
-
-    return JsonResponse({"error": "Invalid request"}, status=400)
-
-
-def validate_filters(filters):
-    """Validate and sanitize input filters before making API calls."""
-    required_filters = ["host_region", "background", "skills", "product_type"]
-
-    # Ensure required filters exist in the request (but they can be empty)
-    for filter_key in required_filters:
-        if filter_key not in filters:
-            filters[filter_key] = []  # Default to an empty list if missing
-
-    return filters
-
-def make_api_calls(request, filters):
-    """Make API calls using validated filters."""
+def get_filters(request):
+    """Retrieve filter values dynamically from AIESEC API"""
     api_url = "https://gis-api.aiesec.org/graphql"
-
     graphql_query = {
         "query": """
-        query GetFilteredOpportunities($locations: [String], $studyField: [String], $skills: [String], $programmes: [String]) {
-            opportunities(
-                filters: { 
-                    locations: $locations, 
-                    studyField: $studyField, 
-                    skills: $skills, 
-                    programmes: $programmes
-                }
-            ) {
-                id
-                title
-                city
-                host_lc {
-                    id
-                    name
-                }
-                backgrounds {
-                    name
-                }
-                skills {
-                    name
-                }
-                programme {
-                    short_name
+        {
+            allOpportunity {
+                data {
+                    host_lc { name }
+                    backgrounds { name }
+                    skills { name }
+                    programme { short_name }
                 }
             }
         }
-        """,
-        "variables": {
-            "locations": filters.get("host_region", []),
-            "studyField": filters.get("background", []),
-            "skills": filters.get("skills", []),
-            "programmes": filters.get("product_type", [])
-        }
+        """
     }
 
     access_token = request.session.get("access_token")
-    
-    if not access_token:
-        print("❌ No access token found in session.")
-        return []
 
-    print(f"🔑 Using Access Token: {access_token}")
+    if not access_token:
+        print("❌ No access token found. Refreshing...")
+        access_token = refresh_access_token(request)
+
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/json"
+    }
+
+    user_response = requests.post(api_url, json=graphql_query, headers=headers)
+
+    print("📩 API Response Status:", user_response.status_code)
+    print("📊 API Response Data:", user_response.text)
+
+    if user_response.status_code == 401:  # Invalid or expired token
+        print("🔄 Token expired! Refreshing token...")
+        access_token = refresh_access_token(request)
+        headers["Authorization"] = f"Bearer {access_token}"
+        user_response = requests.post(api_url, json=graphql_query, headers=headers)  # Retry request
+
+    if user_response.status_code == 200:
+        try:
+            data = user_response.json().get("data", {}).get("allOpportunity", {}).get("data", [])
+            print("✅ Parsed Data:", data)
+
+            host_regions = sorted(set([opp["host_lc"]["name"] for opp in data if opp.get("host_lc")]))
+            backgrounds = sorted(set([bg["name"] for opp in data if opp.get("backgrounds") for bg in opp["backgrounds"]]))
+            skills = sorted(set([sk["name"] for opp in data if opp.get("skills") for sk in opp["skills"]]))
+            product_types = sorted(set([opp["programme"]["short_name"] for opp in data if opp.get("programme")]))
+
+            return {
+                "host_regions": host_regions,
+                "backgrounds": backgrounds,
+                "skills": skills,
+                "product_types": product_types
+            }
+        except Exception as e:
+            print(f"⚠️ Error processing API response: {e}")
+            return {"host_regions": [], "backgrounds": [], "skills": [], "product_types": []}
+
+    print("❌ API request failed, returning empty filters.")
+    return {"host_regions": [], "backgrounds": [], "skills": [], "product_types": []}
+
+def get_filters(request):
+    """Retrieve filter values dynamically from AIESEC API"""
+    api_url = "https://gis-api.aiesec.org/graphql"
+    graphql_query = {
+        "query": """
+        {
+            allOpportunity {
+                data {
+                    host_lc { 
+                        name 
+                    }
+                    backgrounds { 
+                        constant_name 
+                    }
+                    skills { 
+                        constant_name 
+                    }
+                    programme { 
+                        short_name 
+                    }
+                }
+            }
+        }
+        """
+    }
+
+    access_token = request.session.get("access_token")
+
+    if not access_token:
+        print("❌ No access token found. Refreshing...")
+        access_token = refresh_access_token(request)
+
+    if not access_token:
+        print("🚨 Token refresh failed. Logging out user.")
+        return redirect("/auth/logout/")  # Redirect to logout if token is invalid
 
     headers = {
         "Authorization": access_token,
@@ -253,27 +295,62 @@ def make_api_calls(request, filters):
     }
 
     response = requests.post(api_url, json=graphql_query, headers=headers)
+    
+    print("API Access token:", access_token)
+    print("📩 API Response Status:", response.status_code)
+    print("📊 API Response Data:", response.text)
 
-    print(f"📩 API Response Status: {response.status_code}")
-    print(f"📩 API Response Data: {response.text}")
+    if response.status_code == 401:  # Token expired again
+        print("🔄 Token expired! Refreshing token...")
+        access_token = refresh_access_token(request)
+
+        if not access_token:
+            print("🚨 Token refresh failed. Logging out user.")
+            return redirect("/auth/logout/")  # Logout if token is still invalid
+
+        # Use the new token in the second attempt
+        headers["Authorization"] = f"Bearer {access_token}"
+        response = requests.post(api_url, json=graphql_query, headers=headers)
 
     if response.status_code == 200:
-        data = response.json().get("data", {}).get("opportunities", [])
-        
-        # Extract required fields
-        opportunities = []
-        for opp in data:
-            opportunities.append({
-                "id": opp.get("id"),
-                "title": opp.get("title"),
-                "city": opp.get("city"),
-                "host_lc": opp.get("host_lc", {}).get("name", "N/A"),
-                "backgrounds": [bg["name"] for bg in opp.get("backgrounds", [])],
-                "skills": [sk["name"] for sk in opp.get("skills", [])],
-                "programme": opp.get("programme", {}).get("short_name", "N/A"),
-            })
-        
-        return opportunities
-    else:
-        print(f"❌ API call failed with status {response.status_code}: {response.text}")
-        return []
+        try:
+            data = response.json().get("data", {}).get("allOpportunity", {}).get("data", [])
+            print("✅ Parsed Data:", data)
+
+            host_regions = sorted(set([opp["host_lc"]["name"] for opp in data if opp.get("host_lc")]))
+            backgrounds = sorted(set([bg["constant_name"] for opp in data if opp.get("backgrounds") for bg in opp["backgrounds"]]))
+            skills = sorted(set([sk["constant_name"] for opp in data if opp.get("skills") for sk in opp["skills"]]))
+            product_types = sorted(set([opp["programme"]["short_name"] for opp in data if opp.get("programme")]))
+
+            return {
+                "host_regions": host_regions,
+                "backgrounds": backgrounds,
+                "skills": skills,
+                "product_types": product_types
+            }
+        except Exception as e:
+            print(f"⚠️ Error processing API response: {e}")
+            return {"host_regions": [], "backgrounds": [], "skills": [], "product_types": []}
+
+    print("❌ API request failed, returning empty filters.")
+    return {"host_regions": [], "backgrounds": [], "skills": [], "product_types": []}
+
+def filter_opportunities(request):
+    """Render the filter page with dynamic values"""
+    filters = get_filters(request)
+    return render(request, "filter_page.html", {"filters": filters})
+
+def fetch_filtered_opportunities(request):
+    """Handle AJAX request and return filtered opportunities"""
+    if request.method == "POST":
+        print("🔄 Received POST Data:", request.POST)  # Debugging print
+
+        selected_filters = request.POST.getlist("filters[]")
+        print("🔍 Selected Filters Extracted:", selected_filters)  # Debugging print
+
+        response_data = {"message": "Filters received!", "filters": selected_filters}
+        print("📝 Response Data:", response_data)  # Debugging print
+
+        return JsonResponse(response_data)
+
+    return JsonResponse({"error": "Invalid request"}, status=400)

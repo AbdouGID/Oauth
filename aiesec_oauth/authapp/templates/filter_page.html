@@ -7,8 +7,8 @@
     
     <!-- jQuery & Select2 CSS/JS -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css" rel="stylesheet" />
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
 
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
@@ -24,13 +24,13 @@
     <div class="container">
         <h2>Filter Opportunities</h2>
         
-        <form id="filter-form" method="POST">
+        <form id="filter-form">
             {% csrf_token %}
             
             <div class="form-group">
                 <label>Choose Host Region:</label>
-                <select name="host_region[]" multiple class="form-control select2">
-                    {% for region in filters.regions %}
+                <select name="filters[]" multiple class="form-control select2" required>
+                    {% for region in filters.host_regions %}
                         <option value="{{ region }}">{{ region }}</option>
                     {% endfor %}
                 </select>
@@ -38,7 +38,7 @@
 
             <div class="form-group">
                 <label>Choose Background:</label>
-                <select name="background[]" multiple class="form-control select2">
+                <select name="filters[]" multiple class="form-control select2" required>
                     {% for background in filters.backgrounds %}
                         <option value="{{ background }}">{{ background }}</option>
                     {% endfor %}
@@ -47,7 +47,7 @@
 
             <div class="form-group">
                 <label>Choose Skills:</label>
-                <select name="skills[]" multiple class="form-control select2">
+                <select name="filters[]" multiple class="form-control select2" required>
                     {% for skill in filters.skills %}
                         <option value="{{ skill }}">{{ skill }}</option>
                     {% endfor %}
@@ -56,7 +56,7 @@
 
             <div class="form-group">
                 <label>Choose Product Type:</label>
-                <select name="product_type[]" multiple class="form-control select2">
+                <select name="filters[]" multiple class="form-control select2" required>
                     {% for product in filters.product_types %}
                         <option value="{{ product }}">{{ product }}</option>
                     {% endfor %}
@@ -67,61 +67,54 @@
         </form>
 
         <div class="results">
-            <h3>Filtered Results:</h3>
+            <h3>Selected Filters:</h3>
             <ul id="results-list"></ul>
         </div>
     </div>
 
     <script>
-        $(document).ready(function(){
-            // Initialize Select2 for multi-select dropdowns
+        let apiUrl = "/fetch-filtered-opportunities/";
+        $(document).ready(function () {
             $(".select2").select2({
                 placeholder: "Select options",
                 allowClear: true
             });
-    
-            $("#filter-form").submit(function(event){
-                event.preventDefault();  // Prevent normal form submission
-    
-                let formData = {};  // Create object for structured form data
-    
-                // Serialize form inputs properly for multi-select fields
-                $(this).serializeArray().forEach(function(item) {
-                    if (formData[item.name]) {
-                        formData[item.name].push(item.value);
-                    } else {
-                        formData[item.name] = [item.value];
-                    }
-                });
-    
-                // ✅ Send AJAX POST request with JSON body
+
+            $("#filter-form").submit(function(event) {
+                event.preventDefault();  // Prevent default form submission
+
+                let formData = $(this).serializeArray();  // Collect form data properly
+                let csrfToken = $("input[name=csrfmiddlewaretoken]").val(); // Get CSRF token
+
+                console.log("🔄 Sending AJAX Request...");
+                console.log("📩 Form Data Sent:", formData);  // Debugging print
+
                 $.ajax({
-                    url: "{% url 'fetch_filtered_results' %}",  // Ensure this matches Django's URL name
-                    type: "POST",
-                    contentType: "application/json",
-                    data: JSON.stringify(formData),  // Convert to JSON
-                    headers: {
-                        "X-CSRFToken": $("input[name=csrfmiddlewaretoken]").val()  // ✅ Include CSRF token in header
-                    },
-                    success: function(response) {
-                        let resultsList = $("#results-list");
-                        resultsList.empty();
-    
-                        if (response.results.length > 0) {
-                            response.results.forEach(function(item) {
-                                resultsList.append(`<li><strong>${item.title}</strong> - ${item.host_lc} - ${item.backgrounds.join(", ")} - ${item.skills.join(", ")} - ${item.product_type}</li>`);
-                            });
-                        } else {
-                            resultsList.append("<li>No results found.</li>");
-                        }
-                    },
-                    error: function(xhr) {
-                        console.error("❌ Error fetching results:", xhr.responseText);
-                        $("#results-list").html("<li style='color: red;'>Error fetching results.</li>");
+                    url: "/fetch-filtered-opportunities/",  // Ensure correct URL
+                    type: "POST",  // Force POST method
+                    data: formData,
+                    headers: { "X-CSRFToken": csrfToken },  // Include CSRF token
+                    dataType: "json"
+                })
+                .done(function(response) {
+                    console.log("✅ AJAX Response:", response);  // Debugging print
+                    let resultsList = $("#results-list");
+                    resultsList.empty();
+
+                    if (response.filters && response.filters.length > 0) {
+                        response.filters.forEach(function(filter) {
+                            resultsList.append(`<li>${filter}</li>`);
+                        });
+                    } else {
+                        resultsList.append("<li>No filters selected.</li>");
                     }
+                })
+                .fail(function(xhr) {
+                    console.error("❌ Error Response:", xhr.responseText);
+                    $("#results-list").html("<li style='color: red;'>Error fetching results.</li>");
                 });
             });
         });
-    </script>    
+    </script>
 </body>
 </html>
